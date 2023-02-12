@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "euclid",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/zilmarinen/Euclid.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "8a2729640ffe375817fd5ee548206e70c046d74f"
+      }
+    }
+  ],
+  "version" : 2
+}
