@@ -16,6 +16,8 @@ public struct Coordinate: Codable, Equatable, Hashable, Identifiable {
     public var id: String { "[\(x), \(y), \(z)]" }
     
     public var equalToZero: Bool { x + y + z == 0 }
+    public var equalToOne: Bool { x + y + z == 1 }
+    public var equalToNegativeOne: Bool { x + y + z == -1 }
     
     public init(_ x: Int, _ y: Int, _ z: Int) {
         
@@ -39,17 +41,22 @@ public extension Coordinate {
 
 public extension Coordinate {
     
-    var tile: Coordinate { convert(to: .chunk).convert(to: .tile) }
-    var chunk: Coordinate { convert(to: .tile).convert(to: .chunk) }
+    func convert(from: Triangle.Scale, to: Triangle.Scale) -> Coordinate {
+        
+        guard from != to else { return self }
+        
+        return convert(to: from).convert(to: to)
+    }
     
     func convert(to scale: Triangle.Scale) -> Vector {
         
         let dx = Double(x)
         let dy = Double(y)
         let dz = Double(z)
+        let edgeLength = Double(scale.rawValue)
         
-        return Vector((0.5 * dx + -0.5 * dz) * scale.rawValue,
+        return Vector((0.5 * dx + -0.5 * dz) * edgeLength,
                       0,
-                      (-.sqrt3 / 6.0 * dx + .sqrt3 / 3 * dy - .sqrt3 / 6.0 * dz) * scale.rawValue)
+                      (-.sqrt3 / 6.0 * dx + .sqrt3 / 3 * dy - .sqrt3 / 6.0 * dz) * edgeLength)
     }
 }
