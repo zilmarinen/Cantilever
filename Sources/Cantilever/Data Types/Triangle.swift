@@ -9,17 +9,16 @@ import Foundation
 
 public struct Triangle {
     
-    public enum Scale: Double {
+    public enum Scale: Int {
         
-        case tile = 1.0
-        case chunk = 7.0
+        case tile = 1
+        case chunk = 7
+        case region = 28
     }
     
-    public var corners: [Coordinate] { [corner(corner: .c0),
-                                        corner(corner: .c1),
-                                        corner(corner: .c2)] }
+    public var isPointy: Bool { coordinate.equalToZero }
     
-    public var handles: [Coordinate] { !isPointy ? corners : corners.map { $0 + .one } }
+    private var delta: Int { isPointy ? -1 : 1 }
     
     public let coordinate: Coordinate
     
@@ -31,57 +30,56 @@ public struct Triangle {
 
 public extension Triangle {
     
+    //TODO: REMOVE THIS
     func mesh(scale: Scale) -> Mesh {
         
-        let material = (scale == .tile ? (isPointy ? Color(0.28, 0.28, 0.28) : Color(0.77, 0.77, 0.77)) :
-                                         (isPointy ? Color.black : Color.gray))
+        let material = {
+            
+            switch scale {
+                
+            case .tile: return isPointy ? Color(hexString: "#FFE7CC") : Color(hexString: "#F8CBA6")
+            case .chunk: return isPointy ? Color(hexString: "#93BFCF") : Color(hexString: "#BDCDD6")
+            case .region: return isPointy ? Color(hexString: "#E1EEDD") : Color(hexString: "#FEFBE9")
+            }
+        }()
         
-        guard let polygon = Polygon(vertices(scale: scale), material: material) else { return Mesh([]) }
+        guard let polygon = Polygon(vertices(for: scale), material: material) else { return Mesh([]) }
         
         return Mesh([polygon])
     }
-    
-    func vertices(scale: Scale) -> [Vector] { corners.map { $0.convert(to: scale) } }
 }
 
 public extension Triangle {
     
-    var isPointy: Bool { coordinate.equalToZero }
-    var delta: Int { isPointy ? -1 : 1 }
-    
     var perimeter: [Coordinate] { diagonals + edges }
     
-    var neighbours: [Coordinate] { corners.map { coordinate - $0 } }
+    var neighbours: [Coordinate] { corners }
     
-    var diagonals: [Coordinate] {
-        
-        return [Coordinate(delta + coordinate.x, delta + coordinate.y, -delta + coordinate.z),
-                Coordinate(delta + coordinate.x, -delta + coordinate.y, delta + coordinate.z),
-                Coordinate(-delta + coordinate.x, delta + coordinate.y, delta + coordinate.z)].map { coordinate - $0 }
-    }
+    var diagonals: [Coordinate] { [Coordinate(delta + coordinate.x, delta + coordinate.y, -delta + coordinate.z),
+                                   Coordinate(delta + coordinate.x, -delta + coordinate.y, delta + coordinate.z),
+                                   Coordinate(-delta + coordinate.x, delta + coordinate.y, delta + coordinate.z)] }
     
-    var edges: [Coordinate] {
-        
-        return [Coordinate(delta + coordinate.x, -delta + coordinate.y, coordinate.z),
-                Coordinate(delta + coordinate.x, coordinate.y, coordinate.z),
-                Coordinate(delta + coordinate.x, coordinate.y, -delta + coordinate.z),
-                Coordinate(coordinate.x, delta + coordinate.y, -delta + coordinate.z),
-                Coordinate(coordinate.x, delta + coordinate.y,  coordinate.z),
-                Coordinate(-delta + coordinate.x, delta + coordinate.y, coordinate.z),
-                Coordinate(-delta + coordinate.x, coordinate.y, delta + coordinate.z),
-                Coordinate(coordinate.x, coordinate.y, delta + coordinate.z),
-                Coordinate(coordinate.x, -delta + coordinate.y, delta + coordinate.z)].map { coordinate - $0 }
-    }
+    var edges: [Coordinate] { [Coordinate(delta + coordinate.x, -delta + coordinate.y, coordinate.z),
+                               Coordinate(delta + coordinate.x, coordinate.y, coordinate.z),
+                               Coordinate(delta + coordinate.x, coordinate.y, -delta + coordinate.z),
+                               Coordinate(coordinate.x, delta + coordinate.y, -delta + coordinate.z),
+                               Coordinate(coordinate.x, delta + coordinate.y,  coordinate.z),
+                               Coordinate(-delta + coordinate.x, delta + coordinate.y, coordinate.z),
+                               Coordinate(-delta + coordinate.x, coordinate.y, delta + coordinate.z),
+                               Coordinate(coordinate.x, coordinate.y, delta + coordinate.z),
+                               Coordinate(coordinate.x, -delta + coordinate.y, delta + coordinate.z)] }
 }
 
 extension Triangle {
     
-    public enum Corner {
+    public enum Corner: CaseIterable {
         
         case c0, c1, c2
     }
     
-    func corner(corner: Corner) -> Coordinate {
+    public var corners: [Coordinate] { Corner.allCases.map { corner(corner: $0) } }
+    
+    public func corner(corner: Corner) -> Coordinate {
         
         switch corner {
         case .c0: return Coordinate(delta + coordinate.x, coordinate.y, coordinate.z)
@@ -89,6 +87,8 @@ extension Triangle {
         case .c2: return Coordinate(coordinate.x, delta + coordinate.y, coordinate.z)
         }
     }
+    
+    public func vertices(for scale: Scale) -> [Vector] { corners.map { $0.convert(to: scale) } }
 }
 
 extension Triangle {
@@ -179,5 +179,90 @@ extension Triangle {
         let p10 = p13.lerp(p7, 0.5)
         
         return Profile(p0: p0, p1: p1, p2: p2, p3: p3, p5: p5, p8: p8, p4: p4, p7: p7, p11: p11, p12: p12, p13: p13, p14: p14, p6: p6, p9: p9, p10: p10)
+    }
+}
+
+extension Triangle {
+    
+    public struct Triangulation {
+        
+        public let coordinate: Coordinate
+        public let scale: Scale
+        public let triangles: [Triangle]
+    }
+    
+    public func triangulation(for scale: Scale) -> Triangulation {
+        
+        let pointy = isPointy
+        let size = Int(floor(Double(scale.rawValue) / 2.0))
+        let half = Int(Double(size) / 2.0)
+        
+        var triangles: [Triangle] = []
+        
+        for column in 0..<scale.rawValue {
+            
+            let rows = ((column * 2) + 1)
+            
+            let s = size - column
+            
+            for row in 0..<rows {
+                
+                let i = Int(ceil(Double(row) * 0.5))
+                let j = Int(ceil(Double(row - 1) * 0.5))
+                
+                let t = (half - column) + i
+                let u = half - j
+                
+                let offset = Coordinate(pointy ? -s : -u,
+                                        pointy ? t : -t,
+                                        pointy ? u : s)
+                
+                triangles.append(.init(coordinate: coordinate + offset))
+            }
+        }
+        
+        return .init(coordinate: coordinate, scale: scale, triangles: triangles)
+    }
+}
+
+extension Triangle {
+    
+    public struct Handles {
+        
+        public let coordinate: Coordinate
+        public let scale: Scale
+        public let coordinates: [Coordinate]
+    }
+    
+    public func handles(for scale: Scale) -> Handles {
+        
+        let columns = scale.rawValue + 1
+        let origin = coordinate.convert(from: scale, to: .tile)
+        let pointy = origin.equalToZero
+        let size = Int(ceil(Double(scale.rawValue) / sqrt(.silver)))
+        let half = Int(floor(Double(size) / 2.0))
+        
+        var handles: [Coordinate] = []
+
+        for column in 0..<columns {
+
+            let rows = columns - column
+
+            let s = half - column
+            
+            for row in 0..<rows {
+
+                let t = half - row
+                let u = -size + column + row
+
+                let offset = Coordinate(pointy ? u : -u - 1,
+                                        pointy ? t : -t - 1,
+                                        pointy ? s : -s - 1)
+
+                handles.append(origin + offset)
+            }
+        }
+        
+        return .init(coordinate: coordinate, scale: scale, coordinates: handles)
     }
 }
